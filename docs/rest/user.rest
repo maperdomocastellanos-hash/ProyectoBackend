@@ -1,0 +1,29 @@
+### listar 
+GET http://127.0.0.1:3000/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MTZlYjE3MC0wZjZjLTQzYWUtYTRiZC05ZmNmZmQxZTE4ODgiLCJlbWFpbCI6InBydWViYUBtYWlsLmNvbSIsImlhdCI6MTc4MjMwNzA4MiwiZXhwIjoxNzgyMzA3MjYyfQ.zQDNv05HQv6PLOzGiGWkdq1GonkzNqIzPQfCPCdKXtI
+
+### obtener uno por id
+GET http://127.0.0.1:3000/users/1
+
+### guardar
+POST http://127.0.0.1:3000/users
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MTZlYjE3MC0wZjZjLTQzYWUtYTRiZC05ZmNmZmQxZTE4ODgiLCJlbWFpbCI6InBydWViYUBtYWlsLmNvbSIsImlhdCI6MTc4MTkyNjI4MCwiZXhwIjoxNzgxOTI2NDYwfQ.Qkcnzms6xFB5ibx7eGaYvAsn_hJH4xPzHy2ewf3_bRA
+
+    {
+         "name":"Javier Perez Leon",
+         "email":"prueba10@mail.com",
+         "password":"Prueba12345"
+    }
+
+### actualizar (parcial)
+PATCH http://127.0.0.1:3000/users/4e36be9d-2a7d-499e-85af-17ac0b7cecfb
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MTZlYjE3MC0wZjZjLTQzYWUtYTRiZC05ZmNmZmQxZTE4ODgiLCJlbWFpbCI6InBydWViYUBtYWlsLmNvbSIsImlhdCI6MTc4MTkyNjQ3NSwiZXhwIjoxNzgxOTI2NjU1fQ.x3knfkjLstAyvnh77ti-ze6ucRFg9oW_5o4M8YPUIn8
+
+    {
+         "name":"Manuel A. Perdomo"
+    }
+
+### eliminar
+DELETE http://127.0.0.1:3000/users/dabd9952-05d1-40cc-b4d3-af0ed6cb75ed

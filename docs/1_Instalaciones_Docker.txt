@@ -1,0 +1,186 @@
+OJO... PUNTOS IMPORTANTES A TENER EN CUENTA 
+
+- EN EL EJEMPLO ANTERIOR DE NEST_AVISOS TRABAJAMOS DIRECTAMENTE DESDE ENTITY CREANDO LA TABLA, NO SE USO MIGRACIONES 
+- DESDE ENTITY EXPORTAMOS LA CLASE PUBLICACION QUE ES INYECTADA EN PUBLICACION.SERVICE
+- EN EL EJEMPLO ANTERIOR DE AVISOS, NO USAMOS MIGRACIONES PARA CREAR TABLAS 
+- EL TYPEORM LO DECLARAMOS DIRECTAMENTE EN APP.MODULE.TS  DENTRO DE IMPORTS: []
+
+- PERO EN EL PROYECTO FINAL QUE ES ESTE, USAREMOS MIGRACIONES PARA TENER MEJOR CONTROL SOBRE NUESTRA DB 
+- ES OTRA RUTA OPCIONAL PARA HACERLO, ES MAS CONVENIENTE AUNQUE COMO EN EL EJEMPLO ANTERIOR TAMBIEN ES VALIDO
+
+EMPECEMOS: 
+
+
+****************************************************instalacion de pnpm**********************************
+
+- npm install -g pnpm (este se hace una sola vez)
+- Para ver los comandos de pnpm, solo basta con escribir "pnpm" en la terminal
+
+Luego ejecutar dentro del proyecto en la terminal: 
+- pnpm install --strict-peer-dependencies=false --reporter=silent
+
+Luego ejecutar: 
+- pnpm approve-builds  // Se creara la carpeta dist que transpila el codigo de Ts a Js 
+
+Levantamos el proyecto:
+- pnpm run start:dev
+
+ya con eso nos debe de correr y nos debe de aparecer el 
+- NestFactory
+- InstanceLoader
+- RoutesResolver
+- RouterExplorer
+- NestApplication
+
+
+****************************Habilitar swagger con pnpm**********************************
+
+
+npm : npm install @nestjs/swagger  //Ver documentacion
+pnpm: pnpm add @nestjs/swagger
+
+Nota importante:
+Cada vez que instalamos un paquete nuevo, debemos ejecutar:
+- pnpm approve-builds
+
+en main.ts escribimos: 
+
+//swagger
+const config = new DocumentBuilder()
+    .setTitle('ME LA PELA')
+    .setDescription('API description')
+    .setVersion('1.0')
+    .addTag('Backend Api')
+    .addBearerAuth()   // Para ponerle candado al swagger
+    .build();
+const documentFactory = () => SwaggerModule.createDocument(app, config);
+SwaggerModule.setup('swagger', app, documentFactory);
+//end swagger
+
+entonces es INDISPENSABLE colocar @ApiBearerAuth() sobre el controller de cada modulo especifico para controllar los candados del swagger
+
+
+
+
+****************************Trabajar con variables de entorno**********************************
+Debemos instalar segun documentacion Nest (Techniques / configuration)
+
+- 1. pnpm add @nestjs/config 
+
+- 2. colocamos configModule.forRoot en app.module.ts porque el comando anterior generó un modulo 
+      Este se coloca dentro del imports:[ConfigModule.forRoot()]
+
+- 3. Instalamos en la terminal: pnpm add dotenv
+
+- 4. creamos el archivo .env y colocamos las variables de entorno ahi 
+
+*************************************Instalar TypeORM*******************************************
+
+Primero instalar: 
+- pnpm add @nestjs/typeorm typeorm mysql2 (si usamos mysql)
+- pnpm add @nestjs/typeorm typeorm pg (si usamos Postgres)
+
+
+Modo de configuracion:
+En la clase anterior no lo hicimos con migraciones pero no es obligatorio PERO SI IMPORTANTE, 
+
+Ahora veremos migraciones: 
+
+Crear Archivo separado typeorm.config.ts (más organizado, útil si usas migraciones)
+
+Colocamos: 
+import { DataSource } from 'typeorm';
+
+export default new DataSource({
+    type: 'postgres',
+    host: process.env.DB_HOST, // Estas son variables de entorno que las encontramos definidas en el .env
+    port: Number(process.env.BD_PORT) ?? 5432,
+    username: process.env.BD_USERNAME,
+    password: process.env.BD_PASWWORD,
+    database: process.env.BD_DATABASE,
+    entities: [__dirname + '/src/**/*.entity{.ts,.js}'],
+    migrations: [__dirname + '/src/database/migration/*{.ts,.js}'],
+    synchronize: true  // true solamente en desarrollo
+
+})
+
+Por lo tanto en el packgage.json debemos de agregar algunas lineas en el scrip de manera manual, esto es si 
+estamos trabajando con la opcion B, nada mas:  
+
+los nombres entre "" con opcionales, elegidos por nosotros, pueden llamarse de otra forma:
+1. "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
+2. "migration:run": "npm run typeorm migration:run -- -d typeorm.config.ts",
+3. "migration:generate": "npm run typeorm -- migration:generate -d typeorm.config.ts"
+4. "migration:create": "npm run typeorm migration:create src/database/migrations/%npm_config_name%"
+
+
+********************En que momento se usaran estos comandos????????????????????????????
+
+1. "migration:create": Para crear las carpetas que llamaremos DataTable /migration, dentro del proyecto se 
+    ejecuta una sola vez 
+
+2. al crear la entity y tambien teniendo configurada la base de datos: en ambos casos ya se usa: 
+- npm run migration:generate -- src/database/migration/create_table_usuario // Le damos un nombre 
+  Se usa cuando "ya hay entidades definidas" para que TypeORM 
+   detecte los cambios automáticamente AQUI SI YA CONECTA CON TypeORM.CONFIG.TS, ES DECIR EN ESTA INSTANCIA YA 
+   SE NECESITA TENER CONECTADA LA BASE DE DATOS 
+
+3. Luego para convertir la migration y que se nos cree la tabla en la base de datos:  
+- npm run migration:run   //Ejecuta los archivos de migración y los convierte en tabla 
+
+NOTA ACLARATORIA: 
+- si en el lugar donde trabajo ya tengo DB y tablas, no necesito migraciones para nada. 
+
+- Este proyecto lo trabajaremos con Migrations, LAS MIGRACIONES CREARAN LAS TABLAS 
+
+
+POR QUE NO SE HA UTILIZADO MIGRATION EN PROYECTOS ANTERIORES??????????
+¿por que ESTO HA SIDO asi???
+
+RESPUESTA//
+Porque en desarrollo, tenemos la opcion synchronize: true dentro del xxx.config.ts que es la que hace ese trabajo por migration
+
+sin embargo, 
+- para este proyecto se va a usar migration tambien en desarrollo, para conocerlo 
+
+- DE HECHO HASTA ESTE MOMENTO, EN EL PROYECTO NO TENEMOS NINGUNA TABLA, HICIMOS UNA DE PRUEBA 
+PARA VERIFICAR EL FUNCIONAMIENTO DE MIGRATION: GENERATE Y MIGRATION: RUN 
+
+- Para eso solamente se generó de manera rapida un CRUD con "nest g run usuarios", SE CREO una entidad 
+y luego de tener la entity y el servicio de db conectado (postgres) corrimos MIGRATION: GENERATE Y MIGRATION: RUN 
+
+
+***************DESPUES DE CONFIGURAR Y PROBAR EL PROCESO DE MIGRATION******************************
+
+Ahora en el app.module.ts debemos agregar como siempre: 
+
+- El archivo typeorm.config.ts contiene tambien esta misma informacion, pero este archivo se usa 
+ "unica y exclusivamente para MIGRACIONES": 
+
+ Siempre es necesario hacer la conexion con el app.module.ts:
+
+...
+...
+
+@Module({
+  
+  imports: 
+  [
+  ...
+  TypeOrmModule.forRoot({
+    type: 'postgres',
+    host: process.env.BD_HOST, 
+    port: Number(process.env.DB_PORT) ?? 5432,
+    username: process.env.DB_USERNAME,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
+    entities: [__dirname + '/.../**/*.entity{.ts,.js}'],
+  })
+export class AppModule {}
+
+
+**********************************************************Docker******************************************************************
+
+1. creamos el archivo Dockerfile y colocamos el codigo de la imagen que deseamos 
+2. Creamos el archivo docker-compose.yml
+

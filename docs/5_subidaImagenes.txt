@@ -1,0 +1,87 @@
+npm install multer-- npm  
+
+``````````````````````````````
+pnpm add multer --   pnpm
+pnpm add -D @types/multer   --//https://docs.nestjs.com/techniques/file-upload
+``````````````````````````````
+
+//**************en ProductoController que es donde necesitamos subir imagen, colocamos: 
+
+ @Post(':id/actualizar-imagen')
+  @UseInterceptors(FileInterceptor('image'))       //imagen es variable
+  @ApiConsumes('multipart/form-data') 
+  @ApiBody
+  ({
+    schema: {
+        type: 'object',
+        properties: {
+           image:{
+              type: 'string',
+              format: 'binary'
+    }}}
+      
+  })
+  subirImagen(@UploadedFile() file: Express.Multer.File, @Param('id') id:number) {
+  return this.productoService.subirImagen(file,id)
+}
+
+
+=> @ApiConsumes('multipart/form-data') // 1. Indica el tipo de contenido a Swagger: 
+Esa configuración específica se utiliza para indicarle a Swagger que tu 
+endpoint no recibe un JSON común, sino un formulario multipart/form-data diseñado para 
+subir archivos binarios (como imágenes, PDFs o videos).
+
+
+//******************** Pero en el service de producto hay que colocar la funcion
+
+async subirImagen(file:Express.Multer.file, id:number){
+    const validarImagen = ['image/png','image/jpeg','image/jpg'];
+
+    if(!valid.includes(file.mimetype))
+    {
+        throw new badRequestException('El formato ingresado no es valido');
+    }
+
+// Validar tamaño del archivo 
+    const maxSize = 5*1024*1024;
+
+    if(file.size>maxSize)
+    {
+        throw new badRequestException('El archivo es muy grande')
+    }
+
+    const prod = await this.findone(id)
+    prod.imagen = file.path;
+    this.prodRepo.save(prod)
+
+    return{message: 'archivo subido', filepath:file.path}                //lo que va dentro de {} es un objeto
+
+}
+
+
+//**********************************en producto.module
+
+//Este código configura el módulo Multer en NestJS para controlar cómo y dónde 
+// se guardan los archivos que suben los usuarios a tu servidor.
+
+import { diskStorage } from 'multer';
+
+MulterModule.register({
+    
+  // 1. Define el tipo de almacenamiento. 'diskStorage' significa que los archivos se guardarán en el disco duro del servidor.
+  storage: diskStorage({
+    
+    // 2. Define la carpeta de destino. En este caso, crea o usa una carpeta llamada 'uploads' en la raíz del proyecto.
+    destination: './uploads',
+    
+    // 3. Define una función para cambiar el nombre del archivo antes de guardarlo.
+    filename: (req, file, cb) => {
+      // Genera un nombre único usando los milisegundos actuales (Date.now()) unidos al nombre original del archivo.
+      // Esto evita que un archivo nuevo borre a otro que se llame igual.
+      const filename = `${Date.now()}-${file.originalname}`;
+      
+      // Ejecuta el callback enviando 'null' (indica que no hay error) y el nuevo nombre del archivo.
+      cb(null, filename);
+    },
+  }),
+});

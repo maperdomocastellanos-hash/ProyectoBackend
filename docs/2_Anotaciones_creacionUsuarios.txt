@@ -1,0 +1,124 @@
+
+*****************************************************Gestion de usuarios*******************************************************************
+
+Con el siguiente comando creamos la estructura del modulo particular: users, 
+directamente creamos las carpetas donde estara contenido: modules/admin
+
+- nest g res modules/admin/users
+- creamos la entity con todos los campos que lleva esa tabla el id será de tipo UUID
+  que es el usado para API pública con recursos por ID en la URL / microservicios
+
+```````````````````````````````````````````````````````````````````````````````````````````
+Teniendo listo, retomamos los comandos vistos anteriormente
+pero, Antes de ejecutar estos comandos, no olvidar levantar el servidor 
+si estamos usando Docker: 
+
+- npm run migration:generate -- src/database/migration/CreataTablaUsers   //este busca todas las entities y genera todos los archivos migrations
+- npm run migration:run
+
+
+*************************************************************DTO's*******************************************
+
+primero instalamos el class-validator
+
+- pnpm add class-validator class-transformer
+Luego tenemos que colocar las lineas de validacion de datos recibidos: 
+
+en main.ts ::
+
+app.useGlobalPipes(new ValidationPipe({
+  whitelist: true,       // elimina propiedades que no están en el DTO
+  forbidNonWhitelisted: true, // lanza error si llegan propiedades extra
+}));
+
+
+**********************************************Para cifrar contraseñas****************************************
+
+  1. Instalar ::
+- pnpm add bcrypt
+
+  Dentro de la funcion Guardar ó crear en el CRUD en nombrearchivo.service.ts
+- const passwordEncriptada = await bcrypt.hash(password,12)    //passwordEncriptada es nombre de variable 
+  // bcrypt.hash(password,12)  --> transforma la pw en un hash (version cifrada e irreversible de la pw )
+
+  QUEDARIA EN EL ORDEN ASI: 
+
+  1. Declarar las variables que necesitamos 
+  2. Verificar si el correo existe 
+  3. Si existe, entonces que muestre el msj que ya existe (esta es validacion de informacion ingresada, no es autenticacion)
+  4. Si no existe, entonces que postee todos los datos registrados 
+  5. Antes de mandar la inyeccion de datos, alistamos la incriptacion de la contraseña.
+  6. POST siempre lleva dos lineas claves, una de "create", otra de "save" 
+
+
+  async guardar(informacionRecibida:CreateUserDto)
+  {
+      try{
+    
+        // Aqui, qué es donde se guardan los datos necesitamos hacer dos cosas esenciales::
+        // 1. verificar si el correo ingresado ya existe de lo contrario no registrar esa info
+        // 2. Encriptar la contraseña
+
+        const { email:correo, name:nombre, ...RestodeCampos } = informacionRecibida;    //...RestoDeCampos contiene el resto de campos de la tabla (incluye password, por necesitamos traer aqui demasiados campos//
+        // En esta linea anterior unicamente las variables que necesitamos, pero pueden ser muchas, por eso usamos: RestoDatos o cualquier otro nombre asignado
+
+        // Verificar si el email ingresado por el usuario ya existe: 
+        const existeEmail = await this.userRepository.findOneBy({email:correo})
+
+        if(existeEmail){
+            throw new BadRequestException(`El correo ${correo} ya existe, favor ingresar nuevo correo`)
+        }      
+
+        //si no existe entonces preparamos la inyeccion de datos pero incriptando primero la contraseña
+        
+        //incriptacion: 
+        const passwordIncriptada = await bcrypt.hash(RestodeCampos.password,12)
+
+        const NuevoUsuario = this.userRepository.create({...informacionRecibida, password:passwordIncriptada})
+        // Explicacion: aqui le estoy diciendo: 
+        // Vos Hdp....copia todos los campos ==> (...informacionRecibida) y especificamente el campo password 
+        // sustituyelo por la variable passwordIncriptada (password:passwordIncriptada)
+        // ...informacionRecibida esto es ==> todos los campos en TS
+
+        return await this.userRepository.save(NuevoUsuario);
+
+      } catch(error){
+
+        if(error instanceof BadRequestException){     // si ya existe un error previo, entonces: 
+          throw error;                                // solamente muestra el error previo que se habia generado con el msj: ya existe
+        }  
+        throw new InternalServerErrorException('Error al guardar el usuario') // de lo contrario muestra este msj
+      }}
+  
+
+// OJO: 
+// Esto: const { email, name, ...restoDatos } = informacionRecibida;
+//  -->
+//  Es exactamente igual a esto:
+//  const email    = datos.email;
+//  const name     = datos.name;
+//  const password = datos.password;
+//  es para no crear 3 lineas o mas y ahorrar codigo aunque bien las podemos usar asi linea a linea
+
+
+*******************************************************Significado de los errores********************************************************************
+
+BadRequestException (400): Se usa cuando el cliente envía datos inválidos //RELACIONADO AL POST 
+Ejemplos:
+Falta un campo obligatorio.
+Formato incorrecto de email.
+Edad negativa.
+
+NotFoundException (404): Se usa cuando el recurso solicitado no existe // RELACIONADO AL GET PERO DE MOSTRAR POR ID
+Ejemplos:
+Usuario no encontrado.
+Producto con ese ID no existe.
+Archivo inexistente.
+
+InternalServerErrorException (500): Se usa cuando ocurre un error inesperado del lado del servidor // ERROR EN SERVIDOR
+Ejemplos:
+Falló una conexión a la base de datos.
+Error no controlado en el código.
+Fallo al consumir otro servicio.
+
+

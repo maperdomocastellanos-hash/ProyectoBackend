@@ -1,0 +1,119 @@
+
+
+**********************************************AUTENTICACION**********************************************************
+
+Segun documentacion: seguridad/autenticacion: 
+
+//Comenzaremos generando un AuthModuley en él, un AuthService y un AuthController. 
+//Usaremos el AuthService para implementar la lógica de autenticación y el AuthController para exponer los puntos finales de autenticación.
+
+nest g module NombreCarpeta/NombreArchivoqueDamos     --> colocaremos esto: nest g module modules/autenticar
+nest g controller NombreCarpeta/NombreArchivoqueDamos --> colocaremos esto: nest g controller modules/autenticar
+nest g service NombreCarpeta/NombreArchivoqueDamos    --> colocaremos esto: nest g service modules/autenticar 
+
+una vez creadas las carpetas del module, controller y service ::
+
+1. Exportamos en UsersService desde users.module.ts   --> exports: [UsersService] 
+2. Importamos luego en auth.module.ts    --> imports: [UsersModule]
+
+En el codigo TypeScript establecemos el siguiente orden: 
+
+// Link de modelo: 
+//https://www.google.com/search?q=if%28%21validarDatosUsuario%29%7B%7D+que+significa+esa+validacion%3F%3F&rlz=1C1CHBD_esHN1093HN1093&sourceid=chrome&ie=UTF-8&aep=48&cud=0&qsubts=1781836824917&source=chrome.crn.obic&mstk=AUtExfCPD3RkZjJg7d7S6LagtK-pR9bRXlIg2bCJFZlbetdAro34TC2HaRpqwQv2FEZjB4ARBZqiG1o-qtwhxlr3x7jpJ7u5sMpmu3pqkVgohyKpSEmhSBAhtxjllFPpK0tk_fRXqIvHVOmHha6Cp2Yu9gxZfGQGd3636KAquNfNGsEql2cx4VkTOFQrxHs_lA1sx90cbvnBmbf56Q4QBLAeAkSpsTwRa8djTnUopONJ0JE8EUrJX_OIlOZdR3LW7XEGkrMQLEg0xHiOpOEylHvJ5thDcJ_z962woI8&csuir=1&mtid=QKw0atq_HPKFkvQPmdRO&udm=50
+
+
+- Inyectamos dependencia de UsersService dentro del constructor
+- Establecer la funcion asincrona : async validarUsuario(nombre asignado)
+- Busqueda de los datos del usuario basado en el email del usuario --> variable = datosDelUsuario
+- Validar: sí los datos del usuario NO son válidos entonces que muestre = throw new HttpException('Usuario no existe', 404);
+
+Ahora verificamos la contraseña
+
+- Comparamos la contraseña ingresada por el usuario con la contraseña de la base de datos.
+- Si la contraseña no existe entonces que muestre: throw new UnauthorizedException('Contraseña incorrecta');
+- Trabajamos el payload que es donde establecemos el Tocken
+
+********************************************************JWT***************************************************************
+
+Instalamos: 
+- pnpm add @nestjs/jwt
+
+- En auth.servicio.ts colocar injection de dependencia:: private readonly jwtService: JwtService
+
+- En el auth.module en imports[...] colocar: 
+        //segun documentacion: /seguridad/autenticacion: 
+        JwtModule.register
+        ({
+        global: true,
+        secret: process.env. + VariableEntorno,
+        signOptions: { expiresIn: '180s' },
+        }),
+
+en el auth.service.ts colocamos al final del codigo la generacion del token: 
+
+ //Segun modelo de documentacion: 
+        const payload = 
+        { 
+            sub: datosDelUsuario.Id,   //datosDelUsuario --> variable creada en el codigo
+            email: datosDelUsuario.email
+        }
+
+        const access_token= await this.jwtService.signAsync(payload);
+
+        return { access_token };
+
+
+
+**************************************************Guard***************************************************
+
+instalamos con:
+- nest g gu modules/auth  (generar el gu - en las carpetas modules/auth )
+
+
+
+---->>Iniciar sesion
+        -->>Token JWT valido
+                --->>Role es valido? 
+                        --->>Permiso es valido?
+
+La logica dentro del guard es: 
+- el usuario intenta iniciar sesion 
+- El guardia obtiene la peticion del cliente:::::     // const request = context.switchToHttp().getRequest();                                   //documentacion Nest
+- El guardia revisa:::::                              // const [type, token] = request.headers.authorization?.split(' ') ?? [];                 //documentacion Nest
+- El guardia confirma el tocken para dejar pasar     
+
+                try{
+                        const payload = await this.jwtService.verifyAsync(token,{secret: jwtConstants.secret});
+                        request['user'] = payload
+                }catch(error)
+                        {
+                        throw new UnauthorizedException();
+                        }  
+
+ // Aqui con el payload es donde realmente se confirma que el token es legítimo, no falsificado:
+ // El JwtService toma el token (ese string largo separado en 3 partes por puntos) y hace dos cosas:
+
+1. Verifica la firma del token usando tu secret — esto confirma que el token fue creado por tu servidor, y no inventado por alguien más. 
+Si alguien cambia aunque sea un carácter del token, o lo firma con otro secret, la verificación falla.
+
+2. Revisa que no haya expirado (el campo exp que vimos en tu token anterior).
+
+Entonces un paso importante que NO SE PUEDE OMITIR ES: 
+
+Escribir -->>  @UseGuards(AuthGuard) sobre el controllers de las modulos especificos
+
+OJOOO:
+Un punto a importante a descatar es que UN GUARD no se amarra a ningun modulo, por eso puede ser creado donde sea e importado en la carpeta que se desee 
+en mi proyecto, lo cree dentro de carpeta auth, pero lo usé en el controller en la carpeta users PERO SIEMPRE DEBE DE IR DENTRO DEL SRC
+
+src/
+├── auth.guard.ts        ← acá, al mismo nivel que las carpetas//esto si se puede 
+├── auth/
+│   └── ...
+├── users/
+│   └── users.controller.ts
+└── main.ts
+
+
+
+

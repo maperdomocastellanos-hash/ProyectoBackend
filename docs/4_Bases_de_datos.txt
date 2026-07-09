@@ -1,0 +1,176 @@
+//Generamos inventarios: 
+nest g mo modules/admin/inventarios (generamos el modulo de inventarios )
+
+Todos estos iran dentro de inventario: 
+nest g res modules/admin/inventarios/sucursal
+nest g res modules/admin/inventarios/almacen
+nest g res modules/admin/inventarios/producto 
+nest g res modules/admin/inventarios/categoria
+
+nest g res modules/admin/cliente-proveedor 
+nest g res modules/admin/nota 
+
+
+Que hacemos???
+- Trabajamos creando cada entidad y relacionando cada FK de acuerdo al esquema de inventarios: 
+
+- Hay que tener en gran consideracion cuando tenemos una relacion MANY TO MANY
+QUE HACER?
+
+- cuando existe una relacion many to many se crea una nueva tabla: 
+ - tenemos una tabla producto 
+ - tenemos una tabla almacen 
+
+entonces se crea una tabla nueva llamada 
+- AlmacenProducto * 
+
+y usaremos las relaciones de la entity PRODUCTO y la entity ALMACEN contra la tabla combinada llamada 
+- AlmacenProducto * 
+
+
+EL TIPO DE RELACION en la tabla 
+AlmacenProducto *  sera @ManyToOne 
+
+y en la tabla producto y almacen será OneToMany
+
+
+
+***********************************************************producto.service.ts***********************************************
+
+El constructor
+typescriptconstructor(
+  @InjectRepository(Producto)
+  private readonly prodRepo: Repository<Producto>,
+  @InjectRepository(Categoria)
+  private readonly cateRepo: Repository<Categoria>,
+) {}
+
+Aquí estás inyectando dos repositorios, no uno. Cada Repository<X> es como una
+"caja de herramientas" para hablar con una tabla específica de la base de datos.
+
+prodRepo → caja de herramientas para hablar con la tabla producto.
+cateRepo → caja de herramientas para hablar con la tabla categoria.
+
+¿Por qué necesitas la segunda si este servicio es de "Producto"? 
+Porque cuando vas a crear un producto, 
+necesitas confirmar que la categoría que te mandan sí existe en la base de datos. 
+Para preguntarle eso a la base de datos, necesitas el repositorio de Categoria. 
+Es la misma lógica de "peras y manzanas": si quieres pesar peras necesitas la báscula de peras, 
+si quieres confirmar que existe una manzana necesitas ir a revisar la canasta de manzanas — 
+no puedes preguntarle a la báscula de peras si hay manzanas.
+
+listarProducto — los parámetros
+async listarProducto(
+  page: number = 1,
+  limit: number = 10,
+  search: string = '',
+  almacen: number = 0,
+  estado: boolean = true
+)
+
+=> Estos son los "filtros" que te puede pedir el frontend. Los valores después del = son valores por defecto: 
+    si el frontend no te envía nada, usas esos. 
+    Por ejemplo, si nadie te dice qué página quiere, asumes página 1.
+
+const queryBuilder = this.prodRepo.createQueryBuilder('producto')
+Esto es como decir: "voy a armar una consulta SQL pieza por pieza, en vez de escribirla toda de una vez". 'producto' es el alias — 
+el apodo que le vas a poner a la tabla producto dentro de esta consulta (igual que en SQL puro harías FROM producto AS p).
+
+----------------------------------------------Unir y traer datos------------------------------------------------
+
+.leftJoinAndSelect('producto.PinchesAlmacenes', 'productoAlmacen')      //'productoAlmacen'   =>Alias
+.leftJoinAndSelect('productoAlmacen.almacenes', 'almacen')              //'almacen'   =>Alias
+
+No existe una conexión directa entre producto y almacen, así que necesitas pasar por la tabla intermedia 
+(AlmacenProducto, aquí con el nombre de relación PinchesAlmacenes).
+
+Primer leftJoinAndSelect: "desde producto, ve a la relación PinchesAlmacenes (que apunta a la tabla puente) y ponle el apodo productoAlmacen".
+Segundo leftJoinAndSelect: "desde ese puente (productoAlmacen), ve a la relación almacenes y ponle el apodo almacen".
+
+leftJoinAndSelect hace dos cosas a la vez: 
+- 1. hace el LEFT JOIN en SQL y además le dice a TypeORM 
+- 2. tráeme también los datos de esa tabla relacionada
+
+-------------------------------------------------------Filtros
+1. queryBuilder.where('producto.estado = :estado', { estado });
+// :estado es una "casilla vacía" (named parameter) y { estado } es el objeto que le dice qué valor poner ahí
+
+2. if (almacen > 0) {
+    queryBuilder.andWhere('almacen.id = :almacenId', { almacenId: almacen });
+    }
+
+Diferencia clave: 
+=> usas .where() solo una vez (el primer filtro), y todos los filtros que vienen después usan .andWhere(). 
+Aquí el filtro es condicional: solo se agrega si almacen es mayor a 0. Si el frontend manda almacen = 0 (el valor por defecto), 
+este bloque ni se ejecuta — es tu manera de decir "0 significa que no quiero filtrar por almacén".
+
+
+if (search.trim() !== '') {
+  queryBuilder.andWhere('producto.nombre ILIKE :search', { search: `%${search}%` });
+}
+
+.trim() quita espacios en blanco al inicio/final, para que si alguien manda solo "   " no se cuente como búsqueda real.
+ILIKE es como LIKE pero insensible a mayúsculas/minúsculas 
+Los % alrededor de ${search} significan "que contenga esta palabra en cualquier parte del texto", no que empiece o termine exactamente así.
+
+-------------------------------------------------------Paginacion
+
+queryBuilder
+  .skip((page - 1) * limit)
+  .take(limit);
+
+-------------------------------------------------------Ejecutar y devolver
+
+const [data, total] = await queryBuilder.getManyAndCount();
+
+
+return {
+  data,
+  total,
+  page,
+  lastPage: Math.ceil(total / limit)
+};
+
+
+---En el controller colocar: 
+
+necesitamos colocar en el controlador tambien dentro del get()
+con el decorador @query, los mismos parametros del service: 
+
+extendemos @Get: 
+@Get()
+  findAll(
+      @Query('page') page: number = 1,
+      @Query('limit') limit: number = 10,
+      @Query('search') Search: string = '',
+      @Query('warehouse') warehouse: number = 0,
+      @Query('Estatus') Estatus: boolean = true
+    ) 
+    {
+      return this.productoService.listarProducto(page, limit,Search,warehouse, Estatus )     //hay que colocar todo en el mismo orden de producto.service.ts
+    }
+
+
+**************************Las tres formas de cargar relaciones en TypeORM:******************
+
+// 1. find()/findOne() 
+const sucursal = await this.sucursalRepository.findOne({
+    where: { id },
+    relations: { almacen: true }
+});
+
+=> Esta primera puede ser usada para tablas que no tienen relacion Many to Many 
+
+// 2. QueryBuilder con leftJoinAndSelect
+const sucursal = await this.sucursalRepository
+    .createQueryBuilder('sucursal')
+    .leftJoinAndSelect('sucursal.almacen', 'almacen')
+    .where('sucursal.id = :id', { id })
+    .getOne();
+
+Esta segunda puede ser usada para tablas que tienen relacion Many to Many 
+
+
+// 3. eager: true en la entity (se carga siempre, sin pedirlo)
+@OneToMany(() => Almacen, alm => alm.sucursal, { eager: true })
+almacen!: Almacen[]

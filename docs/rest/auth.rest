@@ -1,0 +1,8 @@
+POST http://127.0.0.1:3000/auth/v1/autenticacion/login
+Content-Type: application/json
+
+{
+"email": "prueba@mail.com",
+"pwUsuario": "Prueba12345"
+}
+
