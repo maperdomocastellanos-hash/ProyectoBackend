@@ -4,7 +4,7 @@
 
 Segun documentacion: seguridad/autenticacion: 
 
-//Comenzaremos generando un AuthModuley en él, un AuthService y un AuthController. 
+//Comenzaremos generando un AuthModule y en él, un AuthService y un AuthController. 
 //Usaremos el AuthService para implementar la lógica de autenticación y el AuthController para exponer los puntos finales de autenticación.
 
 nest g module NombreCarpeta/NombreArchivoqueDamos     --> colocaremos esto: nest g module modules/autenticar

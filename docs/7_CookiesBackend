@@ -1,0 +1,214 @@
+`````````````````````````````````````````````````````````````````````````````````````````````````````````
+Guardar el token en localStorage es la práctica más común pero también la más vulnerable: 
+cualquier script malicioso que logre inyectarse en tu app (XSS) puede leer localStorage sin ningún problema y robarse el token. No hace falta que un "programador" lo revise manualmente, basta con un <script> malicioso metido por una librería de terceros comprometida, un CDN hackeado, o una dependencia de npm con código malicioso.
+
+`````````````````````````````````````````````````````````````````````````````````````````````````````````
+
+Guía completa paso a paso, backend NestJS + frontend Vue.
+
+Resumen
+1. Instalar dependencias
+2. Habilitar cookie-parser dentro del main.ts 
+3. auth.service.ts
+4. auth.controller.ts
+5. guard
+
+
+//==================================================================================================================
+
+1. Backend NestJS — instalar dependencias
+
+npm install cookie-parser
+npm install -D @types/cookie-parser
+
+
+//==================================================================================================================
+
+2. Habilitar cookie-parser dentro del main.ts 
+  ....
+
+app.use(cookieParser());
+
+app.enableCors({
+    origin: 'http://localhost:5173', // URL de tu frontend Vue
+    credentials: true, // OBLIGATORIO para que las cookies viajen
+});
+
+  .....
+
+//==================================================================================================================
+
+
+3. auth.service.ts —> 
+
+agregar esto justamente despues del payload dentro de la funlogin:
+
+// ============ AGREGADO ============
+      const access_token = await this.jwtService.signAsync(payload, {
+        secret: process.env.JWT_ACCESS_SECRET,
+        expiresIn: '15m',
+      });
+
+      const refresh_token = await this.jwtService.signAsync(payload, {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: '7d',
+      });
+
+      return { access_token, refresh_token };
+// ============ FIN AGREGADO ============
+
+
+=> en env.    agregar
+JWT_ACCESS_SECRET=  aqui va un codigo generado en (1) con la primera corrida
+JWT_REFRESH_SECRET= aqui va un codigo generado en (1) con la segunda corrida
+
+Puntos importantes
+Deben ser diferentes entre sí. Si usas el mismo secret para ambos tokens, alguien que robe el refresh token podría también falsificar access tokens (y viceversa). 
+=> Son "llaves" distintas para propósitos distintos.
+Genera valores realmente aleatorios, no algo como "miclave123". 
+
+Puedes generarlos así en la terminal:
+Corre ese comando dos veces (uno para cada secret) y pega el resultado en el .env:
+
+=> (1)  node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+
+ejemplo en el env:
+
+JWT_ACCESS_SECRET=8f3a9c2e1b7d4f6a0e9c8b7a6d5e4f3c2b1a0d9e8f7c6b5a4d3e2f1c0b9a8d7e6f5c4b3a2d1e0f9c8b7a6d5e4f3c2b1a0d9e8f7c6b5a4d3e2f1c0b9a8d7e6f5c4b3a2
+
+JWT_REFRESH_SECRET=e5f4c3b2a1d0e9f8c7b6a5d4e3f2c1b0a9d8e7f6c5b4a3d2e1f0c9b8a7d6e5f4c3b2a1d0e9f8c7b6a5d4e3f2c1b0a9d8e7f6c5b4a3d2e1f0c9b8a7d6e5f4c3b2a1
+
+
+
+Crear funcion refresh: 
+async funRefresh(refreshToken: string) {
+  try {
+    const payload = await this.jwtService.verifyAsync(refreshToken, {
+      secret: process.env.JWT_REFRESH_SECRET,
+    });
+
+    const nuevoAccessToken = await this.jwtService.signAsync(
+      { sub: payload.sub, email: payload.email },
+      { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '15m' },
+    );
+
+    return { access_token: nuevoAccessToken };
+  } catch (error) {
+    throw new UnauthorizedException('Refresh token inválido o expirado');
+  }
+}
+
+
+//==================================================================================================================
+
+4. auth.controller.ts —> 
+dentro del @post podemos agregar:
+
+
+@Post("v1/autenticacion/login")
+    async funIngresarCredenciales(@Body() LoginAuthDto: LoginAuthDto,  ---> esto ya lo tengo
+    @Response({ passthrough: true }) res: ExpressResponse,   ------> agregar esto
+)
+{
+
+const { access_token, refresh_token } = await this.authService.funlogin(LoginAuthDto.email,LoginAuthDto.pwUsuario);
+
+ // ====AGREGADO: aquí se setean las cookies ==========
+      res.cookie('access_token', access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000, // 15 minutos
+        path: '/',
+      });
+
+      res.cookie('refresh_token', refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+        path: '/v1/autenticacion/refresh',
+      });
+      // ============ FIN AGREGADO ============
+
+      return { ok: true }; // ya NO retornas el access_token en el body
+    }
+
+...resto de codigo
+
+
+
+
+// ======AGREGAR: nueva funcion Refresh Token================
+
+@Post("v1/autenticacion/refresh")
+async funRefresh(
+  @Request() req: any,
+  @Response({ passthrough: true }) res: ExpressResponse,
+) {
+  const refreshToken = req.cookies?.refresh_token;
+  if (!refreshToken) throw new UnauthorizedException('No hay refresh token');
+
+  const { access_token } = await this.authService.funRefresh(refreshToken);
+
+  res.cookie('access_token', access_token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 15 * 60 * 1000,
+    path: '/',
+  });
+
+  return { ok: true };
+}
+
+// ============ FIN AGREGADO ============
+
+
+
+// ==== AGREGAR: nueva funcion PARA BORRAR COOKIES============
+@Post("v1/autenticacion/logout")
+funLogout(@Response({ passthrough: true }) res: ExpressResponse) {
+  res.clearCookie('access_token', { path: '/' });
+  res.clearCookie('refresh_token', { path: '/v1/autenticacion/refresh' });
+  return { ok: true };
+}
+// ============ FIN AGREGADO  / NO NECESITA EL SERVICE ============
+
+
+//==================================================================================================================
+
+
+5. En el Guard debemos hacer unos ligeros cambios
+
+// ============ CAMBIADO: ahora lee de la cookie, no del header ============
+    Colocamos esto: 
+    const token = request.cookies?.access_token;
+
+    y quitamos esta linea 
+    const [type, token] = request.headers.authorization?.split(' ') ?? [];      //Documentacion de Nest seguridad/autenticacion  
+
+// ============ FIN CAMBIADO ============
+    
+
+y dentro del try / catch
+
+try
+  {
+// === CAMBIADO: secret debe coincidir con el que usaste para firmar en auth.service.ts =========
+    colocamos esto:
+    const payload = await this.jwtService.verifyAsync(token,{secret: process.env.JWT_ACCESS_SECRET});
+
+    y quitamos esto:
+    const payload = await this.jwtService.verifyAsync(token,{secret: jwtConstants.secret});
+
+// ============ FIN CAMBIADO ============
+    
+    request['user'] = payload
+  }catch(error)
+  {
+     throw new UnauthorizedException();
+  }  
+  
+        return true;
+  

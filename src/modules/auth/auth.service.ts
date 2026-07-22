@@ -13,9 +13,7 @@ export class AuthService {
     // 1. Buscar usuario por email. emailUsuario y passwordUsuario tendrán uso
     // al crear el formulario de login del usuario para ingresar a la plataforma.
 
-    async funLogin(
-        correoLogin: string,
-        passwordLogin:string) 
+    async funLogin(correoLogin: string, passwordLogin:string) 
     {
         const datosDelUsuario = await this.usersService.ExtraerDatosPorEmail(correoLogin); 
         // Anda pa' sha bobo y buscarme las credenciales de esta persona por medio de su email

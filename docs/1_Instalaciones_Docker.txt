@@ -10,8 +10,12 @@ OJO... PUNTOS IMPORTANTES A TENER EN CUENTA
 
 EMPECEMOS: 
 
-
-****************************************************instalacion de pnpm**********************************
+**************************************************Cracion de nuevo proyecto******************
+- 1. npm install -g @nestjs/cli
+Andá a la carpeta donde querés que viva el proyecto (la carpeta padre, no la del proyecto): 
+- cd C:\Nest
+y crea el nuevo proyecto: 
+- nest new backend-nest-inventario-repaso
 
 - npm install -g pnpm (este se hace una sola vez)
 - Para ver los comandos de pnpm, solo basta con escribir "pnpm" en la terminal
@@ -60,8 +64,6 @@ SwaggerModule.setup('swagger', app, documentFactory);
 entonces es INDISPENSABLE colocar @ApiBearerAuth() sobre el controller de cada modulo especifico para controllar los candados del swagger
 
 
-
-
 ****************************Trabajar con variables de entorno**********************************
 Debemos instalar segun documentacion Nest (Techniques / configuration)
 
@@ -74,7 +76,8 @@ Debemos instalar segun documentacion Nest (Techniques / configuration)
 
 - 4. creamos el archivo .env y colocamos las variables de entorno ahi 
 
-*************************************Instalar TypeORM*******************************************
+
+****************************Instalar TypeORM y typeorm.config.ts para migraciones***************
 
 Primero instalar: 
 - pnpm add @nestjs/typeorm typeorm mysql2 (si usamos mysql)
@@ -88,21 +91,70 @@ Ahora veremos migraciones:
 
 Crear Archivo separado typeorm.config.ts (más organizado, útil si usas migraciones)
 
+// Antes de esto crear el .env que esta abajo en *Gestion de bases de datos sin uso de Docker*
+
+
 Colocamos: 
 import { DataSource } from 'typeorm';
 
 export default new DataSource({
     type: 'postgres',
     host: process.env.DB_HOST, // Estas son variables de entorno que las encontramos definidas en el .env
-    port: Number(process.env.BD_PORT) ?? 5432,
-    username: process.env.BD_USERNAME,
-    password: process.env.BD_PASWWORD,
-    database: process.env.BD_DATABASE,
+    port: Number(process.env.DB_PORT) ?? 5432,
+    username: process.env.DB_USERNAME,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
     entities: [__dirname + '/src/**/*.entity{.ts,.js}'],
-    migrations: [__dirname + '/src/database/migration/*{.ts,.js}'],
-    synchronize: true  // true solamente en desarrollo
 
+    //aqui se colocaran los archivos de migrations, la carpeta se llamara asi con esa direccion src/database/migration
+    migrations: [__dirname + '/src/database/migration/*{.ts,.js}'],
+    synchronize: false  // true solamente en desarrollo no necesitamos sync si tenemos migraciones
 })
+
+********************************Gestion de bases de datos sin uso de Docker*******************
+
+// 1. Crear la base de datos (sin psql, usando pgAdmin)
+Ya que psql no te funciona en terminal, abrí pgAdmin 4 (buscalo en el menú de inicio, 
+viene instalado junto con PostgreSQL):
+
+Abrilo, te va a pedir la master password (la que pusiste en la instalación)
+Click derecho en Databases → Create → Database
+Nombre: inventario_cv → Save
+
+// 2. Instalar dependencias en tu proyecto Nest (si no las tenés ya)
+- pnpm add @nestjs/typeorm typeorm mysql2 (si usamos mysql)
+- pnpm add @nestjs/typeorm typeorm pg (si usamos Postgres)
+
+
+// 3. Crear/editar tu .env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=tu_password_de_postgres
+DB_NAME=inventario_cv_Repaso
+
+// 4. Configurar app.module.ts
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+
+@Module({
+  imports: [
+    TypeOrmModule.forRoot({
+    type: 'postgres',
+    host: process.env.DB_HOST, 
+    port: Number(process.env.DB_PORT) ?? 5432,
+    username: process.env.DB_USERNAME,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
+    entities: [__dirname + '/**/*.entity{.ts,.js}'],  // ** significa entra en todas las subcarpetas sin importar los niveles
+  }),
+  ],
+})
+export class AppModule {}
+
+
+*****************************************************************************************************
+
 
 Por lo tanto en el packgage.json debemos de agregar algunas lineas en el scrip de manera manual, esto es si 
 estamos trabajando con la opcion B, nada mas:  

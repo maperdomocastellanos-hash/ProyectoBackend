@@ -11,9 +11,7 @@ export class UsersService {
 
   //entendiendo parte de la estructura: 
   //Dentro de los metodos puedo usar elementos del constructor siempre y cuando todo este encapsulado dentro de la clase "UsersService"
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>   
+  constructor(@InjectRepository(User) private readonly userRepository: Repository<User>   
   ){}
 
   async Listar() {

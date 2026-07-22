@@ -4,7 +4,7 @@ import {jwtConstants} from './constants'
 
 
 @Injectable()
-export class AuthGuard implements CanActivate {
+export class AuthGuard implements CanActivate {     //https://docs.nestjs.com/security/authentication
 
 //inyeccion de dependencia:
 constructor(private readonly jwtService: JwtService) {}

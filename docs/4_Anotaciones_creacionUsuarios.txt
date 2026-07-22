@@ -37,6 +37,7 @@ app.useGlobalPipes(new ValidationPipe({
   1. Instalar ::
 - pnpm add bcrypt
 
+
   Dentro de la funcion Guardar ó crear en el CRUD en nombrearchivo.service.ts
 - const passwordEncriptada = await bcrypt.hash(password,12)    //passwordEncriptada es nombre de variable 
   // bcrypt.hash(password,12)  --> transforma la pw en un hash (version cifrada e irreversible de la pw )
@@ -50,6 +51,8 @@ app.useGlobalPipes(new ValidationPipe({
   5. Antes de mandar la inyeccion de datos, alistamos la incriptacion de la contraseña.
   6. POST siempre lleva dos lineas claves, una de "create", otra de "save" 
 
+  en user.servicio colocar: 
+  import * as bcrypt from 'bcrypt';
 
   async guardar(informacionRecibida:CreateUserDto)
   {
